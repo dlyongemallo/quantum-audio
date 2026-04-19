@@ -44,15 +44,21 @@ def get_counts(results_obj, result_id=0):
     Extract counts from a results object.
 
     Args:
-        results_obj: An instance of `PrimitiveResult` or `Result` object from which to extract counts.
+        results_obj: An instance of `UnifiedResult`, `PrimitiveResult`,
+            or `Result` object from which to extract counts.
         result_id: The index of the result to extract if the results object contains multiple results.
 
     Returns:
         counts: The counts of measurements from the results object.
     """
+    from quantumaudio.backends.core.result import UnifiedResult
+
     counts = {}
 
-    if isinstance(results_obj, PrimitiveResult):
+    if isinstance(results_obj, UnifiedResult):
+        counts = results_obj.counts
+
+    elif isinstance(results_obj, PrimitiveResult):
         results_obj = results_obj[result_id]
 
     if isinstance(results_obj, SamplerPubResult):
@@ -61,7 +67,7 @@ def get_counts(results_obj, result_id=0):
     elif isinstance(results_obj, qiskit.result.Result):
         counts = results_obj.get_counts()
 
-    else:
+    elif not counts:
         raise TypeError("Unsupported result object type.")
 
     return counts
@@ -72,13 +78,19 @@ def get_metadata(results_obj, result_id=0):
     Extract metadata from a results object.
 
     Args:
-        results_obj: An instance of `PrimitiveResult` or `Result` object from which to extract metadata.
+        results_obj: An instance of `UnifiedResult`, `PrimitiveResult`,
+            or `Result` object from which to extract metadata.
         result_id: The index of the result to extract if the results object contains multiple results.
 
     Returns:
         metadata: The metadata associated with the result.
     """
+    from quantumaudio.backends.core.result import UnifiedResult
+
     metadata = {}
+
+    if isinstance(results_obj, UnifiedResult):
+        return dict(results_obj.metadata)
 
     if isinstance(results_obj, PrimitiveResult):
         metadata.update(results_obj.metadata)
@@ -134,20 +146,26 @@ def pick_key_from_instance(instance, key):
     """Search for given key in an instance used at decoding.
 
     Args:
-        instance: Can be Qiskit Circuit or Result object.
+        instance: Can be CircuitSpec, Qiskit Circuit, or Result object.
         key: Key to find in the encoded metadata.
 
     """
-    if isinstance(instance, qiskit.circuit.QuantumCircuit):
-        if key == "scheme" and instance.name.upper() in [
-            "QPAM",
-            "SQPAM",
-            "QSM",
-            "MSQPAM",
-            "MQSM",
-        ]:
+    from quantumaudio.backends.core.circuit import CircuitSpec
+
+    _SCHEME_NAMES = ["QPAM", "SQPAM", "QSM", "MSQPAM", "MQSM"]
+
+    # CircuitSpec path.
+    if isinstance(instance, CircuitSpec):
+        if key == "scheme" and instance.name.upper() in _SCHEME_NAMES:
             return instance.name.upper()
         elif key in instance.metadata:
+            return instance.metadata[key]
+
+    # Legacy Qiskit QuantumCircuit path.
+    elif isinstance(instance, qiskit.circuit.QuantumCircuit):
+        if key == "scheme" and instance.name.upper() in _SCHEME_NAMES:
+            return instance.name.upper()
+        elif instance.metadata and key in instance.metadata:
             return instance.metadata[key]
 
     elif isinstance(
@@ -157,9 +175,9 @@ def pick_key_from_instance(instance, key):
         if key in metadata:
             return metadata[key]
 
-    # If the key was not found in the instance
+    # If the key was not found in the instance.
     if key == "scheme":
-        raise ValueError(f"{key} is missing")  # Scheme is essential
+        raise ValueError(f"{key} is missing")  # Scheme is essential.
     return None
 
 

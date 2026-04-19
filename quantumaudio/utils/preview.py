@@ -14,7 +14,6 @@
 # ==========================================================================
 
 import matplotlib.pyplot as plt
-import qiskit
 
 # ======================
 # Preview Functions
@@ -36,20 +35,28 @@ def print_num_qubits(
         print(f"{qubits} qubits for {labels[i]}")
 
 
-def draw_circuit(circuit: qiskit.QuantumCircuit, decompose: int = 0) -> None:
+def draw_circuit(circuit, decompose: int = 0) -> None:
     """Draws a quantum circuit diagram.
 
     Args:
-        circuit: The quantum circuit to draw.
+        circuit: The quantum circuit or CircuitSpec to draw.
         decompose: Number of times to decompose the circuit. Defaults to 0.
 
     """
+    from quantumaudio.backends.core.circuit import CircuitSpec
+
+    if isinstance(circuit, CircuitSpec):
+        from quantumaudio.backends import get_backend
+
+        backend = get_backend("qiskit")
+        circuit = backend.build_circuit(circuit)
+
     for _i in range(decompose):
         circuit = circuit.decompose()
 
     fig = circuit.draw("mpl", style="clifford")
 
-    try:  # Check if the code is running in Jupyter Notebook
+    try:  # Check if the code is running in Jupyter Notebook.
         display(fig)
     except NameError:
         plt.show()
